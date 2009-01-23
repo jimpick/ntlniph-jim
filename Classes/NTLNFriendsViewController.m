@@ -12,7 +12,7 @@
 #define kTweenMargin			10.0
 #define kTextFieldHeight		30.0
 
-#define TITLE_NAME @"NatsuLion for iPhone"
+#define TITLE_NAME @"Jim's NatsuLion"
 
 @implementation NTLNFriendsViewController
 
