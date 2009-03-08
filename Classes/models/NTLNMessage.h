@@ -23,10 +23,12 @@ enum NTLNMessageStatus {
 
 @interface NTLNMessage : NSObject<NTLNIconDownloadDelegate> {
     NSString *statusId;
+    NSString *userId;
     NSString *name;
     NSString *screenName;
     NSString *text;
 	NSString *source;
+	NSString *userWebpage;
     NSDate *timestamp;
     UIImage *icon;
     enum NTLNReplyType replyType;
@@ -36,7 +38,7 @@ enum NTLNMessageStatus {
 	NSObject<NTLNMessageIconUpdate> *iconUpdateDelegate;
 }
 
-@property(readwrite, retain) NSString *statusId, *name, *screenName, *text, *source;
+@property(readwrite, retain) NSString *statusId, *userId, *name, *screenName, *text, *source, *userWebpage;
 @property(readonly) UIImage *icon;
 @property(readwrite, retain) NSDate *timestamp;
 @property(readwrite) enum NTLNReplyType replyType;

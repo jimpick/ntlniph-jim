@@ -70,9 +70,11 @@
 	} else if ([elementName isEqualToString:@"id"] ||
 				[elementName isEqualToString:@"text"] ||
 				[elementName isEqualToString:@"created_at"] ||
-				[elementName isEqualToString:@"favorited"] ||
+			   [elementName isEqualToString:@"source"] ||
+			   [elementName isEqualToString:@"favorited"] ||
 				[elementName isEqualToString:@"name"] ||
-				[elementName isEqualToString:@"screen_name"] ||
+			   [elementName isEqualToString:@"screen_name"] ||
+			   [elementName isEqualToString:@"url"] ||
 				[elementName isEqualToString:@"in_reply_to_user_id"] ||
 			   [elementName isEqualToString:@"profile_image_url"]) {
 		readText = YES;
@@ -109,8 +111,8 @@
 			} else if ([elementName isEqualToString:@"text"]) {
 				[currentMessage setText:[NTLNTwitterXMLReader decodeHeart:
 										 [NTLNXMLHTTPEncoder decodeXML:currentStringValue]]];
-//			} else if ([elementName isEqualToString:@"source"]) {
-//				[currentMessage setSource:currentStringValue];
+			} else if ([elementName isEqualToString:@"source"]) {
+				[currentMessage setSource:currentStringValue];
 			} else if ([elementName isEqualToString:@"created_at"]) {
 				struct tm time;
 				strptime([currentStringValue UTF8String], "%a %b %d %H:%M:%S %z %Y", &time);
@@ -129,10 +131,16 @@
 				[currentMessage setName:currentStringValue];
 			} else if ([elementName isEqualToString:@"screen_name"]) {
 				[currentMessage setScreenName:currentStringValue];
+			} else if ([elementName isEqualToString:@"id"]) {
+				[currentMessage setUserId:currentStringValue];
 			} else if ([elementName isEqualToString:@"profile_image_url"]) {
 				//[currentMessage setName:currentStringValue];
 				currentIconURL = currentStringValue;
 				[currentIconURL retain];
+			} else if ([elementName isEqualToString:@"url"]) {
+				if ([currentStringValue length] > 0) {
+					[currentMessage setUserWebpage:currentStringValue];
+				}
 			}
 		}
 	}

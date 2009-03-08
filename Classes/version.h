@@ -1,1 +1,1 @@
-const NSString *ntlniph_version = @"unknown";
+const NSString *ntlniph_version = @"r";

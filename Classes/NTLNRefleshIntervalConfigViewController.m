@@ -110,12 +110,18 @@ static int index_from_second(int second)
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+	UITableViewCell *oldCell = [tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:selectedIndex inSection:0]];
+	oldCell.accessoryType = UITableViewCellAccessoryNone;
 	
 	NSIndexPath *tableSelection = [tableView indexPathForSelectedRow];
+	
 	[tableView deselectRowAtIndexPath:tableSelection animated:YES];
-
+	
 	selectedIndex = [indexPath row];
-	[tableView reloadData];
+	
+	UITableViewCell *newCell = [tableView cellForRowAtIndexPath:indexPath];
+	newCell.accessoryType = UITableViewCellAccessoryCheckmark;
+	
 	[[NTLNConfiguration instance] setRefleshIntervalSeconds:seconds_from_index(selectedIndex)];
 }
 

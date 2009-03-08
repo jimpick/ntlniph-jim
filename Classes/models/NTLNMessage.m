@@ -4,10 +4,11 @@
 
 @implementation NTLNMessage
 
-@synthesize statusId, name, screenName, text, icon, timestamp, replyType, status, user, source, favorited;
+@synthesize statusId, userId, name, screenName, text, icon, timestamp, replyType, status, user, source, userWebpage, favorited;
 
 - (void) dealloc {
     [statusId release];
+    [userId release];
     [name release];
     [screenName release];
     [text release];
@@ -15,6 +16,7 @@
     [timestamp release];
     [source release];
 	[iconUpdateDelegate release];
+	self.userWebpage = nil;
     [super dealloc];
 }
 
