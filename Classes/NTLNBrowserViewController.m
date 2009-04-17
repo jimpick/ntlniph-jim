@@ -113,6 +113,7 @@
 	[NTLNAccelerometerSensor sharedInstance].delegate = nil;
 	shown = NO;
 	[myWebView loadHTMLString:nil baseURL:nil];
+	
 }
 
 - (void)viewDidAppear:(BOOL)animated {
