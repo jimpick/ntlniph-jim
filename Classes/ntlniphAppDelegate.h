@@ -2,6 +2,12 @@
 
 #import "NTLNCacheCleaner.h"
 
+#define kSendingTweetNotification @"sendingTweet"
+#define kDoneSendingTweetNotification @"doneSendingTweet"
+
+#define kIncNetActivityNotification @"incNetActivity"
+#define kDecNetActivityNotification @"decNetActivity"
+
 @class NTLNTweetPostViewController;
 @class NTLNBrowserViewController;
 @class NTLNFriendsViewController;
@@ -25,6 +31,7 @@
 	NTLNConfigViewController *configViewController;
 	
 	BOOL applicationActive;
+	NSInteger networkActivityCount;
 }
 
 @property (nonatomic, retain) UIWindow *window;
@@ -32,6 +39,8 @@
 @property (readonly) BOOL applicationActive;
 @property (readonly) NTLNBrowserViewController *browserViewController;
 @property (readonly) NTLNTweetPostViewController *tweetPostViewController;
+
+- (void)createViews;
 
 @end
 

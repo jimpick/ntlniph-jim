@@ -1,15 +1,16 @@
 #import "NTLNHttpClient.h"
-
+#import "ntlniphAppDelegate.h"
 
 #define TIMEOUT_SEC		20.0
 
 @implementation NTLNHttpClient
 
-@synthesize recievedData, statusCode;
+@synthesize recievedData, statusCode, imgQuality, imageData, state;
 
 - (id)init {
 	self = [super init];
 	recievedData = [[NSMutableData alloc] init];
+	self.imgQuality = 1;
 	return self;
 }
 
@@ -17,6 +18,7 @@
 #ifdef DEBUG
 	NSLog(@"NTLNHttpClient#dealloc");
 #endif
+	self.imageData = nil;
 	[connection release];
 	[recievedData release];
 	[super dealloc];
@@ -88,19 +90,19 @@
 }
 
 - (void)requestGET:(NSString*)url {
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
 	NSMutableURLRequest *request = [self makeRequest:url];
 	connection = [[NSURLConnection alloc] initWithRequest:request delegate:self startImmediately:YES];
 }
 
 - (void)requestGET:(NSString*)url username:(NSString*)username password:(NSString*)password {
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
 	NSMutableURLRequest *request = [self makeRequest:url username:username password:password];
 	connection = [[NSURLConnection alloc] initWithRequest:request delegate:self startImmediately:YES];
 }
 /*
 - (void)requestPOST:(NSString*)url body:(NSString*)body {
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    [[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
 	NSMutableURLRequest *request = [self makeRequest:url];
     [request setHTTPMethod:@"POST"];
 	if (body) {
@@ -110,8 +112,55 @@
 }
 */
 
+- (NSMutableURLRequest*) getRequest:(NSString*) url forImage:(UIImage*) image  message:(NSString*)message username:(NSString*)username password:(NSString*)password {
+	//NSDictionary *headers = [NSDictionary dictionaryWithObject:title forKey:@"Slug"];
+	self.imageData = UIImageJPEGRepresentation(image, self.imgQuality);
+	NSLog(@"image size: %d", [imageData length]);
+	NSString *boundary = @"END_OF_PART";
+	NSMutableData *postBody = [NSMutableData data];
+	NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary];
+	
+	[postBody appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:[@"Content-Disposition: form-data; name=\"media\"; filename=\"ntln.jpg\"\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:[@"Content-Type: application/octet-stream\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:self.imageData];
+
+	[postBody appendData:[[NSString stringWithFormat:@"\r\n--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"username\"\r\n\r\n%@\r\n", username] 
+						  dataUsingEncoding:NSUTF8StringEncoding]];
+	
+	[postBody appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"password\"\r\n\r\n%@\r\n", password] 
+						  dataUsingEncoding:NSUTF8StringEncoding]];
+	
+	[postBody appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+	[postBody appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"message\"\r\n\r\n%@\r\n", message] 
+						  dataUsingEncoding:NSUTF8StringEncoding]];
+	
+	[postBody appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+	
+	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]init];
+	[request setURL: [NSURL URLWithString:url]];
+	[request setHTTPMethod:@"POST"];
+	
+	[request setValue:contentType forHTTPHeaderField: @"Content-Type"];
+	NSString *dataLength = [NSString stringWithFormat: @"%d", postBody.length]; 
+	[request setValue: dataLength forHTTPHeaderField: @"Content-Length"];
+	
+	[request setHTTPBody: postBody];
+	
+	return request;
+}
+
+- (void)requestPOSTImage:(NSString*)url image:(UIImage*)image message:(NSString*)message username:(NSString*)username password:(NSString*)password {
+	[[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
+	NSMutableURLRequest *request = [self getRequest:url forImage:image message:message username:username password:password];
+    [request setHTTPMethod:@"POST"];
+	connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
+}
+
 - (void)requestPOST:(NSString*)url body:(NSString*)body username:(NSString*)username password:(NSString*)password {
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
 	NSMutableURLRequest *request = [self makeRequest:url username:username password:password];
     [request setHTTPMethod:@"POST"];
 	if (body) {
@@ -123,7 +172,7 @@
 - (void)cancel {
 	[connection cancel];
 	[self requestFailed:nil];
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDecNetActivityNotification object:self];
 }
 
 - (void)requestSucceeded {
@@ -158,12 +207,12 @@
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
 	[self requestSucceeded];
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDecNetActivityNotification object:self];
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError*) error {
 	[self requestFailed:error];
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDecNetActivityNotification object:self];
 }
 
 @end

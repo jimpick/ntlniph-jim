@@ -20,6 +20,10 @@
 	return [UIFont boldSystemFontOfSize:11.0];
 }
 
++ (UIFont*)metaFontSm {
+	return [UIFont boldSystemFontOfSize:9.0];
+}
+
 + (CGFloat)getTextboxHeight:(NSString *)str {
     UILabel *textLabel = [[UILabel alloc] initWithFrame: CGRectZero];
     textLabel.font = [NTLNStatusCell textFont];
@@ -61,19 +65,26 @@
 		name = [name stringByAppendingString:status.message.name];
 	}
 	
-	[name drawInRect:CGRectMake(48.0, metaTextY, 200.0, 12.0) 
+	[name drawInRect:CGRectMake(48.0, metaTextY, 195.0, 12.0) 
 			withFont:[NTLNStatusCell metaFont]
 	   lineBreakMode:UILineBreakModeTailTruncation];
 	
+	/*
 	char tmp[80];
 	time_t tt = [status.message.timestamp timeIntervalSince1970];
 	struct tm *t = localtime(&tt);
-	strftime(tmp, sizeof(tmp), "%H:%M:%S", t);
+	strftime(tmp, sizeof(tmp), "%a %m/%e %H:%M:%S", t);
 	
 	NSString *timestamp = [NSString stringWithUTF8String:tmp];
+	*/
 	
-	[timestamp drawInRect:CGRectMake(250.0, metaTextY, 100.0, 12.0) 
-				 withFont:[NTLNStatusCell metaFont]
+	NSDateFormatter *dateFormat = [[[NSDateFormatter alloc]init]autorelease];
+	[dateFormat setDateFormat:@"EEE H:mm:ss"];
+	
+	NSString *timestamp = [dateFormat stringFromDate:status.message.timestamp];
+	
+	[timestamp drawInRect:CGRectMake(245.0, metaTextY, 100.0, 12.0) 
+				 withFont:[NTLNStatusCell metaFontSm]
 			lineBreakMode:UILineBreakModeTailTruncation];
 }
 

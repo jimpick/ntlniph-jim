@@ -200,8 +200,10 @@ static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReach
 {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     
+	ReachabilityQuery *query = (ReachabilityQuery*)info;
+	
     // Post a notification to notify the client that the network reachability changed.
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"kNetworkReachabilityChangedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"kNetworkReachabilityChangedNotification" object:query.hostNameOrAddress];
 	
 	[pool release];
 }

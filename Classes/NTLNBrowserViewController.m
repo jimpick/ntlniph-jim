@@ -1,6 +1,7 @@
 #import "NTLNBrowserViewController.h"
 #import "NTLNAlert.h"
 #import "NTLNAccelerometerSensor.h"
+#import "ntlniphAppDelegate.h"
 
 @interface NTLNBrowserViewController(Private)
 - (void)setReloadButton:(BOOL)reloadBtn;
@@ -14,28 +15,19 @@
 
 @implementation NTLNBrowserViewController
 
-@synthesize url;
+@synthesize url, lastRequest;
 
 - (void)dealloc
 {
 	NSLog(@"NTLNBrowserViewController#dealloc");
 	[myWebView release];
-	[reloadButton release];
+	[actionButton release];
 	[urlLabel release];
+	self.lastRequest = nil;
 	[super dealloc];
 }
 
 - (void)setReloadButton:(BOOL)reloadBtn {
-	
-	UIBarButtonSystemItem item = reloadBtn ? 
-				UIBarButtonSystemItemRefresh : UIBarButtonSystemItemStop;
-	
-	[reloadButton release];
-	reloadButton = [[UIBarButtonItem alloc] 
-					initWithBarButtonSystemItem:item 
-					target:self action:@selector(reloadButton:)];
-	
-	[[self navigationItem] setRightBarButtonItem:reloadButton];
 }
 
 - (void)loadView
@@ -59,7 +51,11 @@
 	
 	[[self navigationItem] setTitleView:urlLabel];
 	
-	[self setReloadButton:YES];
+	actionButton = [[UIBarButtonItem alloc] 
+					initWithBarButtonSystemItem:UIBarButtonSystemItemAction 
+					target:self action:@selector(actionButton:)];
+	
+	[[self navigationItem] setRightBarButtonItem:actionButton];
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -83,14 +79,19 @@
 - (void)stopProgressIndicator
 {
     loading = NO;
-	[UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDecNetActivityNotification object:self];
 	[self setReloadButton:YES];
+}
+
+- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType {
+	self.lastRequest = request;
+	return true;
 }
 
 - (void)webViewDidStartLoad:(UIWebView *)webView
 {
 	loading = YES;
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+	[[NSNotificationCenter defaultCenter]postNotificationName:kIncNetActivityNotification object:self];
 	[self setReloadButton:NO];
 }
 
@@ -123,12 +124,14 @@
 	[NTLNAccelerometerSensor sharedInstance].delegate = self;
 }
 
-- (void)reloadButton:(id)sender {
-	if (loading) {
-		[myWebView stopLoading];
-	} else {
-		[myWebView reload];
-	}
+- (void)actionButton:(id)sender {
+	UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil
+													delegate:self cancelButtonTitle:@"Cancel" 
+													destructiveButtonTitle:nil
+													otherButtonTitles:@"Open in Safari", @"Mail Link", @"Reload", nil];
+	actionSheet.actionSheetStyle = UIStatusBarStyleBlackTranslucent;
+	[actionSheet showInView:self.view];
+	[actionSheet release];
 }
 
 - (void)fullScreenBrowser {
@@ -163,5 +166,33 @@
 	[self toggleFullScreenTimeline];
 }
 
+- (void) emailLink {
+	NSString *subject = @"";
+	NSString *body = [[myWebView.request URL] absoluteString];
+	
+	NSString *emailAddress = @"";
+	
+	NSString *mailtoLink = 
+	[NSString stringWithFormat: @"mailto:%@?subject=%@&body=%@", emailAddress, subject, body];
+	
+	[[UIApplication sharedApplication] openURL:[NSURL URLWithString:[mailtoLink stringByAddingPercentEscapesUsingEncoding: NSUTF8StringEncoding]]];
+}
+
+- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
+	switch (buttonIndex) {
+		case 0:
+			[[UIApplication sharedApplication] openURL:[myWebView.request URL]];
+			break;
+		case 1:
+			[self emailLink];
+			break;
+		case 2:
+			[myWebView reload];
+			break;
+		default:
+			break;
+	}
+
+}
 
 @end

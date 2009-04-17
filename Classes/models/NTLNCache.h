@@ -13,6 +13,7 @@
 
 }
 
++ (NSString*)createCacheDirectoryWithName:(NSString*)name;
 + (NSString*)createIconCacheDirectory;
 + (NSString*)createXMLCacheDirectory;
 + (NSString*)createTextCacheDirectory;

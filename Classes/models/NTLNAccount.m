@@ -3,10 +3,13 @@
 #define NTLN_PREFERENCE_USERID				@"userId"
 #define NTLN_PREFERENCE_PASSWORD			@"password"
 #define NTLN_PREFERENCE_TWITTER_USERID		@"twitter_user_id"
+#define NTLN_PREFERENCE_TWIT_SCREEN_NAME	@"twitter_screen_name"
 
 static NTLNAccount *_instance;
 
 @implementation NTLNAccount
+
+@synthesize following;
 
 + (id) instance {
     if (!_instance) {
@@ -26,6 +29,7 @@ static NTLNAccount *_instance;
 }
 
 - (void) dealloc {
+	self.following = nil;
     [super dealloc];
 }
 
@@ -44,6 +48,11 @@ static NTLNAccount *_instance;
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
+- (void)setScreenName:(NSString*)screenname {
+    [[NSUserDefaults standardUserDefaults] setObject:screenname forKey:NTLN_PREFERENCE_TWIT_SCREEN_NAME];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
 - (NSString*) username {
 	return [[NSUserDefaults standardUserDefaults] stringForKey:NTLN_PREFERENCE_USERID];
 }
@@ -56,6 +65,10 @@ static NTLNAccount *_instance;
 	return [[NSUserDefaults standardUserDefaults] stringForKey:NTLN_PREFERENCE_TWITTER_USERID];
 }
 
+- (NSString*) screenName {
+	return [[NSUserDefaults standardUserDefaults] stringForKey:NTLN_PREFERENCE_TWIT_SCREEN_NAME];
+}
+
 - (BOOL) valid {
 	NSString *pwd = self.password;
 	NSString *usn = self.username;
@@ -65,15 +78,48 @@ static NTLNAccount *_instance;
 
 - (void)getUserId {
 	NTLNTwitterUserClient *c = [[NTLNTwitterUserClient alloc] initWithDelegate:self];
+	c.state = 1;
 	[c getUserInfoForScreenName:[self username]];
 }
 
 - (void)twitterUserClientSucceeded:(NTLNTwitterUserClient*)sender {
-	[self setUserId:sender.user.user_id];
+	if (sender.state == 2) {
+		self.following = [NSMutableArray arrayWithArray:sender.following];
+	}
+	else if (sender.state == 1) {
+		[self setUserId:sender.user.user_id];
+		[self setScreenName:sender.user.screen_name];
+		[self performSelector:@selector(getFollowing) withObject:nil afterDelay:0.01];
+	}
+}
+
+- (void) getFollowing {
+	NTLNTwitterUserClient *c = [[NTLNTwitterUserClient alloc] initWithDelegate:self];
+	c.state = 2;
+	[c getFollowing:[self username] password:[self password]];
 }
 
 - (void)twitterUserClientFailed:(NTLNTwitterUserClient*)sender {
 }
 
+- (NSNumber*) amIFollowing:(NSString*)otherId {
+	if (!self.following) {
+		return nil;
+	}
+	
+	NSNumber *number = [NSNumber numberWithInt:[otherId intValue]];
+	
+	return [NSNumber numberWithBool:([self.following containsObject:number])];		
+}
+
+- (void) followed:(NSString*)otherId {
+	NSNumber *number = [NSNumber numberWithInt:[otherId intValue]];
+	[self.following addObject:number];
+}
+
+- (void) unFollowed:(NSString*)otherId {
+	NSNumber *number = [NSNumber numberWithInt:[otherId intValue]];
+	[self.following removeObject:number];
+}
 
 @end

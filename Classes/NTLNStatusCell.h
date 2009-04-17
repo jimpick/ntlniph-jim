@@ -16,6 +16,7 @@
 
 + (UIFont*)textFont;
 + (UIFont*)metaFont;
++ (UIFont*)metaFontSm;
 + (CGFloat)getTextboxHeight:(NSString *)str;
 + (void)drawTexts:(NTLNStatus*)status selected:(BOOL)selected;
 	

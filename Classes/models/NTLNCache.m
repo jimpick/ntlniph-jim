@@ -12,7 +12,17 @@
 @implementation NTLNCache
 
 + (NSString*)createCacheDirectoryWithName:(NSString*)name {
-	NSString *path = [NSHomeDirectory() stringByAppendingString:@"/tmp"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *path = [paths objectAtIndex:0];
+    BOOL exists = [fileManager fileExistsAtPath:path];
+    if (!exists) {
+        BOOL success = [fileManager createDirectoryAtPath:path attributes:nil];
+        if (!success) {
+            NSAssert(0, @"Failed to create Documents directory.");
+        }
+    }
+	
 	[[NSFileManager defaultManager] createDirectoryAtPath:path attributes:nil];
 	path = [NSString stringWithFormat:@"%@/%@", path, name];
 	[[NSFileManager defaultManager] createDirectoryAtPath:path attributes:nil];

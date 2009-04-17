@@ -13,9 +13,11 @@
 	NSString *url;
 	NSString *text;
 	NSString *screenName;
+	BOOL singleUser;
 }
 
 @property(readwrite, retain) NSString *url, *text, *screenName;
+@property(readwrite) BOOL singleUser;
 
 @end
 
@@ -34,6 +36,10 @@
 	NTLNURLPair *messageOwnerUrl;
 	
 	UIButton *favButton;
+	UIButton *followButton;
+											
+	UIImage *redButton;
+	UIImage *greenButton;
 }
 
 - (CGFloat)getTextboxHeight:(NSString *)str;

@@ -3,16 +3,21 @@
 #import "NTLNXMLHTTPEncoder.h"
 #import "NTLNConfiguration.h"
 #import "NTLNTwitterXMLReader.h"
+#import "NTLNTwitPicXMLReader.h"
 #import "NTLNAlert.h"
+#import "NTLNTwitterErrorXmlReader.h"
+
+//#define kTwitPicPostUrl @"https://dovevalleyapps.com/api/upload"
+#define kTwitPicPostUrl @"https://twitpic.com/api/upload"
 
 @implementation NTLNTwitterClient
 
-@synthesize requestPage, requestForDirectMessage;
+@synthesize requestPage, requestForDirectMessage, message, userName, savedPass, imageUrl;
 
 /// private methods
 
 + (NSString*)URLForTwitterWithAccount {
-	return @"http://twitter.com/";
+	return @"https://twitter.com/";
 }
 
 - (void)getTimeline:(NSString*)path page:(int)page count:(int)count since_id:(NSString*)since_id forceGet:(BOOL)forceGet {
@@ -43,17 +48,72 @@
 	[delegate twitterClientBegin:self];
 }
 
+- (void) followUser:(NSString*)userId {
+	// http://twitter.com/notifications/follow/12345.xml
+	NSString* url = [NSString stringWithFormat:@"%@friendships/create/%@.xml", 
+					 [NTLNTwitterClient URLForTwitterWithAccount], userId];
+	
+	NSString *username = [[NTLNAccount instance] username];
+	NSString *password = [[NTLNAccount instance] password];
+	
+	requestFollow = true;
+	
+	[self requestPOST:url body:nil username:username password:password];
+}
+
+- (void) unFollowUser:(NSString*)userId {
+	// http://twitter.com/notifications/leave/12345.xml
+	NSString* url = [NSString stringWithFormat:@"%@friendships/destroy/%@.xml", 
+					 [NTLNTwitterClient URLForTwitterWithAccount], userId];
+	
+	NSString *username = [[NTLNAccount instance] username];
+	NSString *password = [[NTLNAccount instance] password];
+	
+	requestFollow = true;
+	
+	[self requestPOST:url body:nil username:username password:password];
+}
+
 - (void) dealloc {
+	self.message = nil;
+	self.userName = nil;
+	self.savedPass = nil;
+	self.imageUrl = nil;
 	[delegate release];
 	[screenNameForUserTimeline release];
 	[super dealloc];
 }
 
 - (void)requestSucceeded {
+	NSLog(@"request succeeded!!! %@", self.message);
 
 	if (statusCode == 200) {
 		if (parseResultXML) {
-			if (contentTypeIsXml) {
+			if (postPicMessage) {
+				postPicMessage = false;
+				NTLNTwitPicXMLReader *xr = [[NTLNTwitPicXMLReader alloc] init];
+				[xr parseXMLData:recievedData];
+
+				if (!xr.mediaUrl) {
+					NSLog(@"problem uploading pic: %@", 
+						  [[[NSString alloc]initWithData:recievedData encoding:NSUTF8StringEncoding]autorelease]);
+					postPicMessage = true;
+					NSError *error = [NSError errorWithDomain:@"twitpic.com" code:xr.errCode userInfo:
+									  [NSDictionary dictionaryWithObject:xr.errMsg forKey:NSLocalizedDescriptionKey]];
+					[recievedData release];
+					recievedData = [[NSMutableData alloc]init];
+					[xr release];
+					[self requestFailed:error];
+					return;
+				}
+				
+				[recievedData release];
+				recievedData = [[NSMutableData alloc]init];
+				[self finishPicMessage:xr.mediaUrl];
+				[xr release];
+				return;
+			}
+			else if (contentTypeIsXml) {
 				NTLNTwitterXMLReader *xr = [[NTLNTwitterXMLReader alloc] init];
 				[xr parseXMLData:recievedData];
 				
@@ -73,11 +133,17 @@
 			[delegate twitterClientSucceeded:self messages:nil];
 		}
 	} else {
+		NSLog(@"error response: %s", [recievedData bytes]);
+		NTLNTwitterErrorXmlReader *xr = [[[NTLNTwitterErrorXmlReader alloc]init]autorelease];
+		[xr parseXMLData:recievedData];
 		if (statusCode != 304) {
 			switch (statusCode) {
 				case 401:
 				case 403:
-					if (screenNameForUserTimeline) {
+					if (requestFollow) {
+						[[NTLNAlert instance] alert:@"Notification Failed" withMessage:xr.error];
+					}
+					else if (screenNameForUserTimeline) {
 						[[NTLNAlert instance] alert:@"Protected" 
 										withMessage:[NSString 
 													 stringWithFormat:@"@%@ has protected their updates.", 
@@ -89,11 +155,10 @@
 					break;
 				default:
 					{
-						NSString *msg = [NSString stringWithFormat:@"Twitter responded %d", statusCode];
 						if (requestForTimeline) {
-							[[NTLNAlert instance] alert:@"Retrieving timeline failed" withMessage:msg];
+							[[NTLNAlert instance] alert:@"Retrieving timeline failed" withMessage:xr.error];
 						} else {
-							[[NTLNAlert instance] alert:@"Sending a message failed" withMessage:msg];
+							[[NTLNAlert instance] alert:@"Sending a message failed" withMessage:xr.error];
 						}
 					}
 					break;
@@ -108,6 +173,7 @@
 }
 
 - (void)requestFailed:(NSError*)error {
+	NSLog(@"request failed!!! %@", self.message);
 	if (error) {
 		[[NTLNAlert instance] alert:@"Network error" withMessage:[error localizedDescription]];
 	}
@@ -121,6 +187,7 @@
 
 - (id)initWithDelegate:(NSObject<NTLNTwitterClientDelegate>*)aDelegate {
 	self = [super init];
+	postPicMessage = false;
 	delegate = aDelegate;
 	[delegate retain];
 	return self;
@@ -180,15 +247,48 @@
 }
 
 - (void)post:(NSString*)tweet {
-	NSString* url = [NSString stringWithFormat:@"%@statuses/update.xml", 
-						[NTLNTwitterClient URLForTwitterWithAccount]];
-    NSString *postString = [NSString stringWithFormat:@"status=%@&source=NatsuLiphone", 
-							[NTLNXMLHTTPEncoder encodeHTTP:tweet]];
-
 	NSString *username = [[NTLNAccount instance] username];
 	NSString *password = [[NTLNAccount instance] password];
+	[self post:tweet forUser:username withPassword:password];
+}
 
-	[self requestPOST:url body:postString username:username password:password];
+- (void)post:(NSString*)tweet forUser:(NSString*)twid withPassword:(NSString*)password {
+	parseResultXML = YES;
+	NSString* url = [NSString stringWithFormat:@"%@statuses/update.xml", 
+					 [NTLNTwitterClient URLForTwitterWithAccount]];
+    NSString *postString = [NSString stringWithFormat:@"status=%@&source=NatsuLiphone", 
+							[NTLNXMLHTTPEncoder encodeHTTP:tweet]];
+	
+	self.message = tweet;
+	self.userName = twid;
+	self.savedPass = password;
+	[self requestPOST:url body:postString username:twid password:password];
+}	
+
+- (void)post:(NSString*)tweet withImage:(UIImage*)image {
+	NSString *username = [[NTLNAccount instance] username];
+	NSString *password = [[NTLNAccount instance] password];
+	[self post:tweet withImage:image forUser:username withPassword:password];
+}
+
+- (void)post:(NSString*)tweet withImage:(UIImage*)image forUser:(NSString*)twid withPassword:(NSString*)password {
+	parseResultXML = YES;
+	postPicMessage = YES;
+	self.message = tweet;
+	self.userName = twid;
+	self.savedPass = password;
+	[self requestPOSTImage:kTwitPicPostUrl image:image message:tweet username:twid password:password];
+}
+
+- (void)finishPicMessage:(NSString*)picUrl {
+	self.imageUrl = picUrl;
+	int over = 139 - ([self.message length] + [picUrl length]);
+	
+	if (over < 0) {
+		self.message = [self.message substringToIndex:[self.message length] + over];
+	}
+	
+	[self post:[NSString stringWithFormat:@"%@ %@", self.message, picUrl] forUser:self.userName withPassword:self.savedPass];
 }
 
 - (void)createFavoriteWithID:(NSString*)messageId {

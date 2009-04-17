@@ -107,7 +107,7 @@
 @interface NTLNTimelineViewController(Client) <NTLNTwitterClientDelegate, NTLNMessageIconUpdate>
 - (void)getTimelineWithPage:(int)page autoload:(BOOL)autoload;
 - (void)removeLastReloadTime; // !!
-
+- (BOOL)insertStatusToSortedTimeline:(NTLNStatus*)status;
 @end
 
 @interface NTLNTimelineViewController(tableView) <UITableViewDataSource, UITableViewDelegate>

@@ -35,8 +35,9 @@
 	} else if ([elementName isEqualToString:@"status"]) {
 		userTagChild = NO;
 	} else if ([elementName isEqualToString:@"id"] ||
-				[elementName isEqualToString:@"screen_name"] ||
-				[elementName isEqualToString:@"profile_image_url"]) {
+			   [elementName isEqualToString:@"screen_name"] ||
+			   [elementName isEqualToString:@"profile_image_url"] ||
+			   [elementName isEqualToString:@"url"]) {
 		readText = YES;
 		currentStringValue = [[NSMutableString alloc] initWithCapacity:50];
 	} 
@@ -61,6 +62,8 @@
 				user.screen_name = currentStringValue;
 			} else if ([elementName isEqualToString:@"profile_image_url"]) {
 				user.profile_image_url = currentStringValue;
+			} else if ([elementName isEqualToString:@"url"]) {
+				user.webpage = currentStringValue;
 			}
 		} else if ([elementName isEqualToString:@"user"]) {
 			userTagChild = NO;

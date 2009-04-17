@@ -3,10 +3,19 @@
 #import "NTLNAccount.h"
 #import "NTLNCache.h"
 #import "NTLNConfiguration.h"
+#import "TempTextView.h"
 
 @implementation NTLNTweetPostViewController
 
 @synthesize active;
+@synthesize attachedImage;
+@synthesize picture;
+
+- (id) initWithNibName:(NSString*)nibName bundle:(NSBundle*)bundle {
+	self = [super initWithNibName:nibName bundle:bundle];
+	maxText = 140;
+	return self;
+}
 
 - (void)setViewColors {
 	UIColor *textColor, *backgroundColor;
@@ -44,18 +53,22 @@
 									target:self action:@selector(closeButtonPushed:)] autorelease];
 	
 	UIBarButtonItem *clearButton = [[[UIBarButtonItem alloc] 
-									initWithTitle:@"clear" 
-									style:UIBarButtonItemStyleBordered 
-									target:self action:@selector(clearButtonPushed:)] autorelease];
+									 initWithTitle:@"clear" 
+									 style:UIBarButtonItemStyleBordered 
+									 target:self action:@selector(clearButtonPushed:)] autorelease];
 	
-	UIView *expandView = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, 133, 44)] autorelease];
+	UIBarButtonItem *photoButton = [[[UIBarButtonItem alloc] 
+									 initWithBarButtonSystemItem:UIBarButtonSystemItemCamera 
+									 target:self action:@selector(photoButtonPushed:)] autorelease];
+	
+	UIView *expandView = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, 98, 44)] autorelease];
 
-	textLengthView = [[UILabel alloc] initWithFrame:CGRectMake(80, 5, 133-80, 34)];
+	textLengthView = [[UILabel alloc] initWithFrame:CGRectMake(45, 5, 133-80, 34)];
 	textLengthView.font = [UIFont boldSystemFontOfSize:20];
 	textLengthView.textAlignment = UITextAlignmentRight;
 	textLengthView.textColor = [UIColor whiteColor];
 	textLengthView.backgroundColor = [UIColor clearColor];
-	textLengthView.text = @"140";
+	textLengthView.text = [NSString stringWithFormat:@"%d", maxText];
 	
 	[expandView addSubview:textLengthView];
 	
@@ -66,14 +79,23 @@
 									style:UIBarButtonItemStyleBordered 
 									target:self action:@selector(sendButtonPushed:)] autorelease];
 	
-	[toolbar setItems:[NSArray arrayWithObjects:closeButton, clearButton, expand, sendButton, nil]];
+	[toolbar setItems:[NSArray arrayWithObjects:closeButton, clearButton, photoButton, expand, sendButton, nil]];
 	
-	tweetTextView = [[UITextView alloc] initWithFrame:CGRectMake(0, 44, 320, 200)];
+	tweetTextView = [[TempTextView alloc] initWithFrame:CGRectMake(0, 54, 320, 200)];
 	tweetTextView.font = [UIFont systemFontOfSize:16];
 	tweetTextView.delegate = self;
 		
 	[self.view addSubview:toolbar];
 	[self.view addSubview:tweetTextView];
+	
+	self.picture = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@"picture.png"]];
+	CGRect picFrame = self.picture.frame;
+	picFrame.origin.x = 300;
+	picFrame.origin.y = 47;
+	self.picture.frame = picFrame;
+	[self.view addSubview:self.picture];
+	self.picture.alpha = 0;
+	
 	[self setViewColors];
 }
 
@@ -109,6 +131,7 @@
 	
 	[backupFilename release];
 	[tmpTextForInitial release];
+
 	[super dealloc];
 }
 
@@ -122,11 +145,14 @@
 }
 
 - (void)twitterClientSucceeded:(NTLNTwitterClient*)sender messages:(NSArray*)statuses {	
+	self.attachedImage = nil;
 	[tweetTextView setText:@""];
 	[self savePost];
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDoneSendingTweetNotification object:self];
 }
 
 - (void)twitterClientFailed:(NTLNTwitterClient*)sender {
+	[[NSNotificationCenter defaultCenter]postNotificationName:kDoneSendingTweetNotification object:self];
 }
 
 - (void)twitterClientBegin:(NTLNTwitterClient*)sender {
@@ -183,8 +209,8 @@
 
 - (void)textViewDidChange:(UITextView *)textView {
 	int len = [textView.text length];
-	[textLengthView setText:[NSString stringWithFormat:@"%d", (140-len)]];
-	if (len >= 140) {
+	[textLengthView setText:[NSString stringWithFormat:@"%d", (maxText-len)]];
+	if (len >= maxText) {
 		textLengthView.textColor = [UIColor redColor];
 	} else {
 		textLengthView.textColor = [UIColor whiteColor];
@@ -200,17 +226,65 @@
 }
 
 - (IBAction)clearButtonPushed:(id)sender {
+	self.attachedImage = nil;
 	[tweetTextView setText:@""];
 	[self savePost];
 }
 
 - (IBAction)sendButtonPushed:(id)sender {
 	NTLNTwitterClient *tc = [[NTLNTwitterClient alloc] initWithDelegate:self];
-	[tc post:tweetTextView.text];
+	
+	if (self.attachedImage) {
+		[tc post:tweetTextView.text withImage:self.attachedImage];
+	}
+	else {
+		[tc post:tweetTextView.text];
+	}
 	
 	[tweetTextView resignFirstResponder];
 	[self.view removeFromSuperview];
+	
+	[[NSNotificationCenter defaultCenter]postNotificationName:kSendingTweetNotification object:self];
+	
 	active = NO;
+}
+
+- (IBAction)photoButtonPushed:(id)sender {
+	prevPosition = tweetTextView.selectedRange;
+	NTLNPhotoUtil *photoUtil = [[NTLNPhotoUtil alloc]initWithDelegate:self];
+
+	[tweetTextView resignFirstResponder];
+	[photoUtil chooseImage:self withClear:(self.attachedImage != nil)];
+}
+
+- (void) reposition {
+	tweetTextView.selectedRange = NSMakeRange(prevPosition.location, 0);
+}
+
+- (void)userDidCancel:(NTLNPhotoUtil*)util {
+	[tweetTextView becomeFirstResponder];
+	[self performSelector:@selector(reposition) withObject:nil afterDelay:0.1];
+	[self reposition];
+	[util autorelease];
+}
+
+- (void)imageChoosen:(UIImage*)image fromUtil:(NTLNPhotoUtil*)util {
+	self.attachedImage = image;
+	[tweetTextView becomeFirstResponder];
+	[self performSelector:@selector(reposition) withObject:nil afterDelay:0.1];
+	[self reposition];
+	[util autorelease];
+}
+
+- (void) setAttachedImage:(UIImage*)image {
+	if (attachedImage) {
+		[attachedImage release];
+	}
+	
+	attachedImage = image;
+	[attachedImage retain];
+	
+	self.picture.alpha = (image==nil)?0:1;
 }
 
 @end

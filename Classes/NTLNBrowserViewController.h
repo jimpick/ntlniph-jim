@@ -2,10 +2,10 @@
 #import "NTLNAccelerometerSensor.h"
 
 @interface NTLNBrowserViewController : UIViewController 
-			<UITextFieldDelegate, UIWebViewDelegate, NTLNAccelerometerSensorDelegate> {
+			<UITextFieldDelegate, UIWebViewDelegate, NTLNAccelerometerSensorDelegate, UIActionSheetDelegate> {
 
 	UIWebView	*myWebView;
-	UIBarButtonItem	*reloadButton;
+	UIBarButtonItem	*actionButton;
 	UILabel *urlLabel;
 
 	NSString *url;
@@ -15,8 +15,11 @@
 	
 	UIView *browserViewSuperView;
 	CGRect browserViewOriginalFrame;
+				
+	NSURLRequest *lastRequest;
 }
 
 @property (readwrite, retain) NSString *url;
+@property (readwrite, retain) NSURLRequest *lastRequest;
 
 @end

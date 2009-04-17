@@ -10,14 +10,20 @@
 #import "NTLNConfiguration.h"
 #import "NTLNColors.h"
 #import "NTLNCellBackgroundView.h"
+#import "NTLNXMLHTTPEncoder.h"
 
 #define TEXT_FONT_SIZE	16.0
 
-#define FAVBUTTON_DESTROY_FAV	@"Remove Favorite"
-#define FAVBUTTON_MAKE_FAV		@"Make Favorite"
+#define FAVBUTTON_DESTROY_FAV	@"Un-Favorite"
+#define FAVBUTTON_MAKE_FAV		@"Favorite"
+
+#define FOLBUTTON_UN_FOLLOW		@"UN-FOLLOW"
+#define FOLBUTTON_FOLLOW		@"FOLLOW"
+
+#define HASHTAG_URL_FORMAT		@"http://search.twitter.com/search?q=%@"
 
 @implementation NTLNURLPair
-@synthesize url, text, screenName;
+@synthesize url, text, screenName, singleUser;
 
 - (void)dealloc {
 	[url release];
@@ -96,6 +102,8 @@
 	[urls release];
 	[messageOwnerUrl release];
 	[message release];
+	[redButton release];
+	[greenButton release];
 	[super dealloc];
 }
 
@@ -111,13 +119,13 @@
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
 	if ([indexPath row] == 0) {
-		return 140 + [self getTextboxHeight:message.text];
+		return 130 + [self getTextboxHeight:message.text];
 	}
 	return 44;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-	return 2 + [urls count];
+	return 1 + [urls count];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -126,10 +134,10 @@
 	{
 		case 0:
 			return [self screenNameCell];
-		case 1:
-			return [self urlCell:messageOwnerUrl isEven:NO];
+//		case 1:
+//			return [self urlCell:messageOwnerUrl isEven:NO];
 		default:
-			return [self urlCell:[urls objectAtIndex:row-2] isEven:(row%2==0)];
+			return [self urlCell:[urls objectAtIndex:row-1] isEven:(row%2==0)];
 	}
 }
 
@@ -166,13 +174,16 @@
 	switch (row){
 		case 0:
 			break;
-		case 1:
-			[self switchToUserTimelineViewWithScreenName:message.screenName];
-			break;
+//		case 1:
+//			[self switchToUserTimelineViewWithScreenName:message.screenName];
+//			break;
 		default:
 			{
-				NTLNURLPair *up = [urls objectAtIndex:row-2];
-				if (up.screenName) {
+				NTLNURLPair *up = [urls objectAtIndex:row-1];
+				if (up.screenName && up.singleUser) {
+					[self switchToUserTimelineViewWithScreenName:message.screenName];
+				}
+				else if (up.screenName) {
 					NSArray *names = [[NSArray alloc] initWithObjects:message.screenName, up.screenName, nil];
 					[self switchToUserTimelineViewWithScreenNames:names];
 					[names release];
@@ -191,6 +202,7 @@
 
 - (void)favButtonAction:(id)sender {
 	NTLNTwitterClient *twitterClient = [[NTLNTwitterClient alloc] initWithDelegate:self];
+	twitterClient.state = 1;
 	if (message.favorited) {
 		[twitterClient destroyFavoriteWithID:message.statusId];
 	} else {
@@ -201,6 +213,22 @@
 	[favButton setTitle:@"(sending...)" forState:UIControlStateDisabled];
 }
 
+- (void)folButtonAction:(id)sender {
+	NSNumber *following = [[NTLNAccount instance] amIFollowing:message.userId];
+
+	NTLNTwitterClient *twitterClient = [[NTLNTwitterClient alloc] initWithDelegate:self];
+	if (![following boolValue]) {
+		twitterClient.state = 2;
+		[twitterClient followUser:message.userId];
+	} else {
+		twitterClient.state = 3;
+		[twitterClient unFollowUser:message.userId];
+	}
+	
+	[followButton setTitle:@"(sending...)" forState:UIControlStateNormal]; // to redraw
+	[followButton setTitle:@"(sending...)" forState:UIControlStateDisabled];
+}
+
 - (void)replyButtonAction:(id)sender {
 	[[self navigationController].view addSubview:tweetPostViewController.view];
 	
@@ -209,6 +237,14 @@
 	} else {
 		[tweetPostViewController createReplyPost:[@"@" stringByAppendingString:message.screenName]];
 	}
+	
+	[tweetPostViewController showWindow];
+}
+
+- (void)retweetButtonAction:(id)sender {
+	[[self navigationController].view addSubview:tweetPostViewController.view];
+	
+	[tweetPostViewController createReplyPost:[NSString stringWithFormat:@"RT @%@: %@", message.screenName, message.text]];
 	
 	[tweetPostViewController showWindow];
 }
@@ -229,12 +265,51 @@
 	}
 }
 
+- (BOOL) isFollowing {
+  NSNumber *following = [[NTLNAccount instance] amIFollowing:message.userId];
+	if (!following) {
+		return false;
+	}
+	
+	BOOL followingBool = [following boolValue];
+  return followingBool;
+}
+- (NSString*)followButtonText {
+	if ([message.userId isEqualToString:[[NTLNAccount instance] userId]]) {
+		return nil;
+	}
+	
+	BOOL followingBool = [self isFollowing];
+
+	if (followingBool) {
+		return FOLBUTTON_UN_FOLLOW;
+	} else {
+		return FOLBUTTON_FOLLOW;
+	}
+}
+
+#define kDetailButtonHeight 30
+#define kDetailButtonWidth 93
+#define kDetailButtonMargin 8
+
+#define kFollowButtonWidth 65
+
 - (UITableViewCell *)screenNameCell {
 	UIColor *bgcolor = [[NTLNColors instance] evenBackground];
 
 	UITableViewCell *cell = [[[UITableViewCell alloc] initWithFrame:CGRectZero] autorelease];
 		
-	UILabel *name = [[[UILabel alloc] initWithFrame:CGRectMake(76.0, 6.0, 230.0, 30.0)] autorelease];
+	CGFloat followButtonWidth = 0;
+	
+	NSString *folButtonText = [self followButtonText];
+	
+	if (folButtonText) {
+		followButtonWidth = kFollowButtonWidth + kDetailButtonMargin;
+	}
+	
+	UILabel *name = [[[UILabel alloc] initWithFrame:CGRectMake(76.0, 6.0, 
+															   230.0 - followButtonWidth, 
+															   30.0)] autorelease];
 	name.font = [UIFont boldSystemFontOfSize:20.0];
 //	name.textColor = [UIColor grayColor];
 	name.backgroundColor = bgcolor;
@@ -266,6 +341,20 @@
 		forControlEvents:UIControlEventTouchUpInside];
 	[cell.contentView addSubview:iconview];	
 	
+	if (folButtonText) {
+		redButton = [[[UIImage imageNamed:@"red-button.png"] stretchableImageWithLeftCapWidth:6 topCapHeight:0] retain];
+		greenButton = [[[UIImage imageNamed:@"green-button.png"] stretchableImageWithLeftCapWidth:6 topCapHeight:0] retain];
+		
+		UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+		[b setFrame:CGRectMake(76.0 + 230.0 - kFollowButtonWidth, 10.0, 
+							   kFollowButtonWidth, 25)];
+		[b setTitle:folButtonText forState:UIControlStateNormal];
+		[b addTarget:self action:@selector(folButtonAction:) forControlEvents:UIControlEventTouchUpInside];
+		b.font = [UIFont boldSystemFontOfSize:10];
+		[cell addSubview:b];
+		followButton = b;
+		[followButton setBackgroundImage:[self isFollowing]?redButton:greenButton forState:UIControlStateNormal];
+	}
 	
 	CGFloat textHeight = [self getTextboxHeight:message.text];
 	
@@ -283,22 +372,29 @@
 	cell.accessoryType = UITableViewCellAccessoryNone;
 	cell.selectionStyle = UITableViewCellSelectionStyleNone;
 	cell.selectedTextColor = [UIColor whiteColor];
-		
 	
 	{
 		UIButton *b = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-		[b setFrame:CGRectMake(20+145, 86 + textHeight, 145, 40)];
+		[b setFrame:CGRectMake(kDetailButtonMargin, 86 + textHeight, kDetailButtonWidth, kDetailButtonHeight)];
+		[b setTitle:@"Reply" forState:UIControlStateNormal];
+		[b addTarget:self action:@selector(replyButtonAction:) forControlEvents:UIControlEventTouchUpInside];
+		[cell addSubview:b];
+	}
+	{
+		UIButton *b = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+		[b setFrame:CGRectMake((kDetailButtonMargin * 2) + kDetailButtonWidth, 86 + textHeight, kDetailButtonWidth, kDetailButtonHeight)];
+		[b setTitle:@"Re-Tweet" forState:UIControlStateNormal];
+		[b addTarget:self action:@selector(retweetButtonAction:) forControlEvents:UIControlEventTouchUpInside];
+		[cell addSubview:b];
+	}
+	{
+		UIButton *b = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+		[b setFrame:CGRectMake((kDetailButtonMargin * 3) + (kDetailButtonWidth * 2), 86 + textHeight, 
+							   kDetailButtonWidth, kDetailButtonHeight)];
 		[b setTitle:[self favButtonText] forState:UIControlStateNormal];
 		[b addTarget:self action:@selector(favButtonAction:) forControlEvents:UIControlEventTouchUpInside];
 		[cell addSubview:b];
 		favButton = b;
-	}
-	{
-		UIButton *b = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-		[b setFrame:CGRectMake(10, 86 + textHeight, 145, 40)];
-		[b setTitle:@"Reply" forState:UIControlStateNormal];
-		[b addTarget:self action:@selector(replyButtonAction:) forControlEvents:UIControlEventTouchUpInside];
-		[cell addSubview:b];
 	}
 	
 	cell.backgroundView = [[[NTLNCellBackgroundView alloc] initWithFrame:CGRectZero] autorelease];
@@ -316,7 +412,22 @@
 - (void)parseToken {
 	
 	[urls removeAllObjects];
-
+	
+	if (message.userWebpage) {
+		// add webpage url
+		NTLNURLPair *pair = [[[NTLNURLPair alloc]init]autorelease];
+		pair.text = [NSString stringWithFormat:@"%@ Web", message.screenName];
+		pair.url = message.userWebpage;
+		[urls addObject:pair];
+	}	
+	
+	NTLNURLPair *pair = [[[NTLNURLPair alloc]init]autorelease];
+	pair.text = [NSString stringWithFormat:@"@%@", message.screenName];
+	pair.screenName = message.screenName;
+	pair.url = [@"http://twitter.com/" stringByAppendingString:pair.screenName];
+	pair.singleUser = true;
+	[urls addObject:pair];
+	
 	NTLNURLUtils *utils = [NTLNURLUtils utils];
     NSArray *tokens = [utils tokenizeByAll:message.text];
 	int i;
@@ -328,8 +439,9 @@
 			pair.url = token;
 			[urls addObject:pair];
 			[pair release];
-		} else if ([utils isIDToken:token] && 
-				   ! [message.screenName isEqualToString:[token substringFromIndex:1]]) {
+		} 
+		else if ([utils isIDToken:token] && 
+				 ! [message.screenName isEqualToString:[token substringFromIndex:1]]) {
 			NTLNURLPair *pair = [[NTLNURLPair alloc] init];
 			pair.text = [NSString stringWithFormat:@"@%@ + %@", message.screenName, token];
 			pair.screenName = [token substringFromIndex:1];
@@ -337,16 +449,40 @@
 			[urls addObject:pair];
 			[pair release];
         }
+		else if ([utils isHashtagToken:token]) {
+			NTLNURLPair *pair = [[NTLNURLPair alloc] init];
+			pair.text = token;
+			
+			NSString *tag = [token substringFromIndex:1];
+			
+			pair.url = [NSString stringWithFormat:HASHTAG_URL_FORMAT, [NTLNXMLHTTPEncoder encodeHTTP:tag]];
+			[urls addObject:pair];
+			[pair release];
+        }
     }
 }
 
 - (void)twitterClientSucceeded:(NTLNTwitterClient*)sender messages:(NSArray*)messages {
-	message.favorited = !message.favorited;
-	[favButton setTitle:[self favButtonText] forState:UIControlStateNormal];
+	if (sender.state == 1) {
+		message.favorited = !message.favorited;
+		[favButton setTitle:[self favButtonText] forState:UIControlStateNormal];
+	}
+	else if (sender.state == 2) {
+		// add to array
+		[[NTLNAccount instance]followed:message.userId];
+		[followButton setTitle:[self followButtonText] forState:UIControlStateNormal];
+	}
+	else if (sender.state == 3) {
+		// remove from array
+		[[NTLNAccount instance]unFollowed:message.userId];
+		[followButton setTitle:[self followButtonText] forState:UIControlStateNormal];
+	}
+	[followButton setBackgroundImage:[self isFollowing]?redButton:greenButton forState:UIControlStateNormal];
 }
 
 - (void)twitterClientFailed:(NTLNTwitterClient*)sender {
 	[favButton setTitle:[self favButtonText] forState:UIControlStateNormal];
+	[followButton setTitle:[self followButtonText] forState:UIControlStateNormal];
 }
 
 - (void)twitterClientBegin:(NTLNTwitterClient*)sender {
